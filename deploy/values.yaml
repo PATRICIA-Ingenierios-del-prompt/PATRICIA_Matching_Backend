@@ -1,9 +1,6 @@
 # Defaults for the Matching MS chart. The CD job overrides image.repository and
 # image.tag per deploy (pinned to the commit SHA); everything else is edited
 # here and versioned with the code it configures.
-# Defaults for the Matching MS chart. The CD job overrides image.repository
-# and image.tag per deploy (pinned to the commit SHA); everything else is
-# edited here and versioned with the code it configures.
 
 image:
   repository: ""            # set by CD: <account>.dkr.ecr.<region>.amazonaws.com/patricia-dev/matching
@@ -57,10 +54,9 @@ externalSecrets:
   #                                  `aws secretsmanager list-secrets | grep matching`
   #                                  y `aws rds describe-db-instances` antes de
   #                                  asumirlo. Su forma es SPRING_DATASOURCE_URL/
-  #                                  USERNAME/PASSWORD (nativa) -- mapeada abajo
-  #                                  a POSTGRES_URL/POSTGRES_USER/POSTGRES_PASS
-  #                                  porque asi es como el codigo de Matching
-  #                                  los espera (igual que paso con Users).
+  #                                  USERNAME/PASSWORD (nativa), y application.yml
+  #                                  ya usa exactamente esos mismos nombres --
+  #                                  sin mapeo a nombres custom.
   #   patricia-dev/internal-api-key -> CONFIRMAR si ya existe (en la sesion de
   #                                  Auth todavia no existia). Si no existe,
   #                                  Matching arranca igual (sin @Validated en

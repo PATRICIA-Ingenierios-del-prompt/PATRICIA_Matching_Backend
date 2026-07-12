@@ -1,6 +1,4 @@
-# Nombre `matching` — es el que debe usar el Gateway (config.matchingServiceUri
-# → http://matching.patricia-app.svc.cluster.local:8086) para enrutar hacia acá.
-# Name `matching` — es lo que debe usar el Gateway como matchingServiceUri
+# Nombre `matching` — es el que debe usar el Gateway como matchingServiceUri
 # (http://matching.patricia-app.svc.cluster.local:8086) cuando le agreguen
 # la ruta correspondiente en RouteConfig.java.
 apiVersion: v1
