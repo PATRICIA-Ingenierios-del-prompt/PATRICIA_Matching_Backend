@@ -1,0 +1,197 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  # Debe coincidir con el path del repo ECR: <registry>/patricia-dev/matching
+  # (los repos ECR se llaman "${project}-${env}/${service}" = "patricia-dev/matching").
+  IMAGE_NAME: patricia-dev/matching
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build, test & coverage
+        run: mvn -B clean verify -Pcoverage
+
+      # -------------------------------------------------------------------------
+      # SonarCloud quality gate. continue-on-error: true porque el problema de
+      # "Automatic Analysis" vs "CI-based Analysis" en SonarCloud sigue sin
+      # resolverse del todo para la organizacion (ver nota en Auth/CI.yml).
+      # -------------------------------------------------------------------------
+      - name: Sonar analysis (branch)
+        if: github.event_name == 'push'
+        continue-on-error: true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN_BACKEND }}
+        run: |
+          mvn --batch-mode sonar:sonar \
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY_BACKEND }} \
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${{ secrets.SONAR_TOKEN_BACKEND }} \
+            -Dsonar.coverage.jacoco.xmlReportPaths=${GITHUB_WORKSPACE}/target/site/jacoco/jacoco.xml \
+            -Dsonar.java.binaries=target/classes \
+            -Dsonar.sources=src/main/java \
+            -Dsonar.tests=src/test/java \
+            -Dsonar.exclusions="**/MatchingServiceApplication.java" \
+            -Dsonar.coverage.exclusions="**/MatchingServiceApplication.java,**/dto/**,**/*Entity.java,**/*Mapper.java,**/config/**"
+
+      - name: Sonar analysis (pull request)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN_BACKEND }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn --batch-mode sonar:sonar \
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY_BACKEND }} \
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${{ secrets.SONAR_TOKEN_BACKEND }} \
+            -Dsonar.coverage.jacoco.xmlReportPaths=${GITHUB_WORKSPACE}/target/site/jacoco/jacoco.xml \
+            -Dsonar.java.binaries=target/classes \
+            -Dsonar.sources=src/main/java \
+            -Dsonar.tests=src/test/java \
+            -Dsonar.exclusions="**/MatchingServiceApplication.java" \
+            -Dsonar.coverage.exclusions="**/MatchingServiceApplication.java,**/dto/**,**/*Entity.java,**/*Mapper.java,**/config/**" \
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
+            -Dsonar.pullrequest.branch=${{ github.head_ref }} \
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
+
+      # On PRs we only verify the Dockerfile still builds; the real image is
+      # built and pushed by the push-image job on develop/main.
+      - name: Build Docker image (verify Dockerfile works)
+        if: github.event_name == 'pull_request'
+        run: docker build -t ${{ env.IMAGE_NAME }}:ci .
+
+  # ---------------------------------------------------------------------------
+  # CD (§1.2): push the image to ECR on every push to develop/main.
+  # Credentials come from GitHub OIDC -> AWS role; no static keys anywhere.
+  # ---------------------------------------------------------------------------
+  push-image:
+    needs: build-and-test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC token for configure-aws-credentials
+      contents: read
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CD_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${{ vars.ECR_REGISTRY }}
+
+      - name: Compute image tag (short SHA)
+        id: meta
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # Idempotency check: ECR repos here have immutable tags, so re-running
+      # this job on a commit that was already pushed (e.g. "re-run all jobs")
+      # would fail with "tag invalid ... cannot be overwritten". If the tag
+      # already exists, skip the build/push entirely.
+      - name: Check if image tag already exists in ECR
+        id: check-image
+        run: |
+          if aws ecr describe-images \
+              --repository-name ${{ env.IMAGE_NAME }} \
+              --image-ids imageTag=${{ steps.meta.outputs.tag }} \
+              --region ${{ vars.AWS_REGION }} >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push
+        if: steps.check-image.outputs.exists == 'false'
+        run: |
+          IMAGE=${{ vars.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}
+          docker build -t $IMAGE:${{ steps.meta.outputs.tag }} .
+          docker push $IMAGE:${{ steps.meta.outputs.tag }}
+
+      - name: Skip push (tag already exists)
+        if: steps.check-image.outputs.exists == 'true'
+        run: echo "Tag ${{ steps.meta.outputs.tag }} already exists in ${{ env.IMAGE_NAME }} — reusing existing image."
+
+  # ---------------------------------------------------------------------------
+  # CD (§1.3): deploy to EKS on push to main ONLY.
+  # --timeout 10m (NO 5m): con SecurityGroupPolicy personalizado, Fargate a
+  # veces tarda mas en aprovisionar el ENI (nos paso en Users con 5m).
+  # `helm upgrade --wait` + readiness probes gatean el rollout: si los pods
+  # nuevos nunca quedan ready, este job FALLA y el ReplicaSet viejo sigue sirviendo.
+  # Rollback manual: helm rollback matching -n patricia-app
+  # ---------------------------------------------------------------------------
+  deploy:
+    needs: push-image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CD_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Set up kubeconfig
+        run: aws eks update-kubeconfig --name ${{ vars.EKS_CLUSTER_NAME }} --region ${{ vars.AWS_REGION }}
+
+      - name: Deploy (helm upgrade, gated by --wait)
+        run: |
+          helm upgrade matching ./deploy \
+            --install \
+            --namespace patricia-app \
+            --set image.repository=${{ vars.ECR_REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ needs.push-image.outputs.image_tag }} \
+            --wait --timeout 10m
+
+      - name: Smoke check
+        run: |
+          # Igual que Auth: chequeo in-cluster, no la URL publica. Todavia no
+          # hay ruta /api/matching (u otro path) en Gateway ni en el
+          # ordered_cache_behavior de CloudFront, asi que la unica forma real
+          # de probar que el pod esta vivo es pegarle directo al Service.
+          kubectl run smoke-matching-$GITHUB_RUN_ID --namespace patricia-app \
+            --image=curlimages/curl:8.8.0 --restart=Never --rm -i --quiet \
+            --command -- curl -sf --retry 10 --retry-delay 6 --retry-all-errors \
+            http://matching.patricia-app.svc.cluster.local:8086/actuator/health

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matching
+  namespace: patricia-app
+  labels: { app: matching }
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels: { app: matching }
+  template:
+    metadata:
+      labels: { app: matching, patricia.io/sg-tier: standard }
+    spec:
+      serviceAccountName: matching
+      containers:
+        - name: matching
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8086
+          envFrom:
+            - configMapRef: { name: matching-config }
+            - secretRef:    { name: matching-secrets }
+
+          startupProbe:
+            httpGet: { path: /actuator/health, port: 8086 }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8086 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8086 }
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
