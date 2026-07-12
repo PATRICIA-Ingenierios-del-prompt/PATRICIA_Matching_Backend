@@ -1,0 +1,14 @@
+# Nombre `matching` — es el que debe usar el Gateway (config.matchingServiceUri
+# → http://matching.patricia-app.svc.cluster.local:8086) para enrutar hacia acá.
+apiVersion: v1
+kind: Service
+metadata:
+  name: matching
+  namespace: patricia-app
+  labels: { app: matching }
+spec:
+  type: ClusterIP
+  selector: { app: matching }
+  ports:
+    - port: 8086
+      targetPort: 8086

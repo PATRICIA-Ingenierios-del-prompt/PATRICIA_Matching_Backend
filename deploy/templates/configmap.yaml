@@ -1,0 +1,21 @@
+# Configuración no sensible. JWT_SECRET, RabbitMQ, Postgres y Redis vienen del
+# Secret matching-secrets sincronizado por el ExternalSecret (ver externalsecret.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matching-config
+  namespace: patricia-app
+data:
+  USUARIO_SERVICE_URL: {{ .Values.config.usuarioServiceUrl | quote }}
+  PARCHES_CORE_SERVICE_URL: {{ .Values.config.parchesCoreServiceUrl | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.config.corsAllowedOrigins | quote }}
+  MATCHING_MAX_POOL: {{ .Values.config.maxPool | quote }}
+  MATCHING_TAMANO_COLA: {{ .Values.config.tamanoCola | quote }}
+  MATCHING_SUGERENCIAS_TTL_HORAS: {{ .Values.config.sugerenciasTtlHoras | quote }}
+  MATCHING_LIKES_TTL_DIAS: {{ .Values.config.likesTtlDias | quote }}
+  MATCHING_PARCHES_COMUN_HABILITADO: {{ .Values.config.parchesComunHabilitado | quote }}
+  MATCHING_BONUS_POR_PARCHE: {{ .Values.config.bonusPorParche | quote }}
+  REDIS_SSL_ENABLED: "true"
+  {{- if .Values.config.activeProfiles }}
+  SPRING_PROFILES_ACTIVE: {{ .Values.config.activeProfiles | quote }}
+  {{- end }}

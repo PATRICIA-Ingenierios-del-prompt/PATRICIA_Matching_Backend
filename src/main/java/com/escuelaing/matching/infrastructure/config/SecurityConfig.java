@@ -13,6 +13,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * Configuración de seguridad de matching-service.
@@ -48,22 +49,23 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain matchingFilterChain(
             HttpSecurity http,
-            JwtTokenParser jwtTokenParser
+            JwtTokenParser jwtTokenParser,
+            CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
         http.securityMatcher("/matching/**")
                 .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-
-        // 👈 La línea comentada ya no lleva el punto inicial ni afecta la cadena de métodos:
-        // http.addFilterBefore(new JwtAuthenticationFilter(jwtTokenParser), UsernamePasswordAuthenticationFilter.class);
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenParser), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
     @Order(3)
-    public SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
+        // Cubre rutas públicas restantes (Swagger UI, actuator health, etc.).
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -75,21 +77,6 @@ public class SecurityConfig {
                         ).permitAll()
                         .anyRequest().denyAll());
 
-        return http.build();
-    }
-
-    @Bean
-    public org.springframework.security.core.userdetails.UserDetailsService userDetailsService() {
-        return username -> {
-            throw new org.springframework.security.core.userdetails.UsernameNotFoundException("No users");
-        };
-    }
-
-    @Bean
-    @Order(4)
-    public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
     }
 }

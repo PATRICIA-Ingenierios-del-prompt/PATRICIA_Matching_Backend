@@ -28,7 +28,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/matching")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000")
 @Tag(name = "Matching", description = "Feed de sugerencias, decisiones (like/descarte) y matches confirmados")
 public class MatchingController {
 
@@ -79,16 +78,15 @@ public class MatchingController {
 
     /** Extrae el UUID del principal que inyectó JwtAuthenticationFilter. */
     private UUID usuarioId(Authentication auth) {
-        // Si no hay sesión (pruebas locales), interceptamos el flujo
-        if (auth == null || auth.getPrincipal() == null) {
-            // El UUID real que insertamos con éxito en tu tabla 'usuarios' locales:
-            return UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        if (auth == null || !(auth.getPrincipal() instanceof UUID uuid)) {
+            // No debería ocurrir nunca: SecurityConfig exige authenticated()
+            // en /matching/** y JwtAuthenticationFilter siempre puebla el
+            // principal con un UUID cuando la autenticación es válida. Si
+            // esto se dispara, es un bug de configuración — hay que
+            // rechazar la petición, jamás suplantar a un usuario real.
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "No se pudo determinar el usuario autenticado");
         }
-
-        Object principal = auth.getPrincipal();
-        if (principal instanceof UUID uuid) {
-            return uuid;
-        }
-        return UUID.fromString("5e5b9e7e-c5f7-4c4a-96c8-95cf7ad3bb8e");
+        return uuid;
     }
 }

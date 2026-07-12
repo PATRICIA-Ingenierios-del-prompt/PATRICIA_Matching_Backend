@@ -8,10 +8,12 @@ spring:
   application:
     name: matching-service
 
+  # Nombres de binding de Spring Boot (mismo patrón que usuarios-service):
+  # el ExternalSecret escribe directamente estas claves, sin capa de traducción.
   datasource:
-    url: ${POSTGRES_URL}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASS}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
 
   jpa:
     hibernate:
@@ -27,14 +29,17 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      # password: se toma de SPRING_DATA_REDIS_PASSWORD si esa env var existe
+      # (relaxed binding de Spring Boot), igual que en usuarios-service.
 
   rabbitmq:
-    host: ${RABBITMQ_HOST}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER}
-    password: ${RABBITMQ_PASS}
+    addresses: ${SPRING_RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VHOST:/}
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -86,3 +91,5 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true

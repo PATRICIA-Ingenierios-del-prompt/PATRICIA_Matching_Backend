@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class InternalApiKeyFilter extends OncePerRequestFilter {
 
-    private static final String HEADER = "X-Internal-Api-Key";
+    public static final String HEADER = "X-Internal-Api-Key";
 
     private final String internalApiKey;
 

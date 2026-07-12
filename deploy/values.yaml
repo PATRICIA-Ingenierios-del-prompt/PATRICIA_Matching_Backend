@@ -1,0 +1,55 @@
+# Defaults for the Matching MS chart. The CD job overrides image.repository and
+# image.tag per deploy (pinned to the commit SHA); everything else is edited
+# here and versioned with the code it configures.
+
+image:
+  repository: ""            # set by CD: <account>.dkr.ecr.<region>.amazonaws.com/patricia-dev/matching
+  tag: ""                   # set by CD: short commit SHA
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+serviceAccount:
+  roleArn: "arn:aws:iam::406103775000:role/patricia-dev-matching-irsa"
+
+config:
+
+  usuarioServiceUrl: "http://users.patricia-app.svc.cluster.local:8082"
+  # TODO: confirmar nombre real del Service de parches-core una vez desplegado.
+  parchesCoreServiceUrl: "http://parches-core.patricia-app.svc.cluster.local:8083"
+  corsAllowedOrigins: "https://app.patricia.io"
+
+  maxPool: "200"
+  tamanoCola: "50"
+  sugerenciasTtlHoras: "24"
+  likesTtlDias: "30"
+  # Ver README: sin endpoint real en Parches Core todavía, se mantiene apagado.
+  parchesComunHabilitado: "false"
+  bonusPorParche: "0.05"
+
+  # Solo relevante si ninguno de los dos endpoints reales existe aún en el
+  # entorno objetivo. Dejar vacío en producción cuando ambos existan.
+  activeProfiles: ""
+
+externalSecrets:
+  clusterSecretStore: patricia-aws-secrets-manager
+  prefix: "patricia-dev"
+  # Lo que debe existir en AWS Secrets Manager para este servicio:
+  #   patricia-dev/jwt-secret        -> compartido con Auth/Gateway/Users.
+  #   patricia-dev/internal-api-key  -> compartido (mismo secreto service-to-service).
+  #   patricia-dev/amazon-mq         -> compartido. Claves JSON
+  #                                     SPRING_RABBITMQ_ADDRESSES/USERNAME/PASSWORD.
+  #   patricia-dev/cache-redis       -> compartido. Claves JSON
+  #                                     REDIS_HOST/REDIS_PORT/REDIS_PASSWORD.
+  #   patricia-dev/matching/rds      -> NUEVO, propio de este servicio. Claves JSON
+  #                                     SPRING_DATASOURCE_URL/USERNAME/PASSWORD
+  #                                     (mismo patrón que patricia-dev/users/rds).
+
+resources:
+  requests: { cpu: 500m, memory: 768Mi }
+  limits:   { cpu: "1",  memory: 1Gi }
+
+hpa:
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
