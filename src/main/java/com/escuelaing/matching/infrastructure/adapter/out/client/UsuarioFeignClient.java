@@ -11,24 +11,13 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Cliente Feign hacia endpoints internos de Usuarios protegidos por
- * {@code X-Internal-Api-Key} (mismo mecanismo que {@code /internal/usuarios/**}
- * en usuarios-service: ver {@code InternalApiKeyFilter}).
- * <p>
- * <b>IMPORTANTE — contrato propuesto, aún no implementado en Usuarios:</b>
- * el repo actual de usuarios-service (rama feature-inicial) solo expone
- * {@code /internal/usuarios/find-or-create}, {@code /internal/usuarios/{id}},
- * {@code /internal/usuarios/buscar} y {@code /internal/usuarios/{id}/estado}
- * (que devuelven solo datos de {@code Usuario}: email, nombre, roles, estado).
- * Los datos de {@code Perfil} (carrera, semestre, intereses, disponibilidad)
- * solo se exponen hoy en {@code /api/v1/usuarios/{id}/perfil}, protegido con
- * JWT del propio usuario — inutilizable para una llamada servicio-a-servicio.
- * <p>
- * Mientras Usuarios no agregue {@code /internal/usuarios/{id}/perfil-matching}
- * y {@code /internal/usuarios/candidatos-matching} (composición interna de
- * Usuario + Perfil, sin exigir JWT), Matching corre con
- * {@code MockPerfilUsuarioAdapter} (perfil {@code mock-usuarios}). Ver
- * TODO_INTEGRACIONES.md para el detalle de lo que falta agregar en Usuarios.
+ * Cliente Feign hacia los endpoints internos de Usuarios protegidos por
+ * {@code X-Internal-Api-Key}. Contratos implementados en
+ * {@code InternalUsuarioController} (rama develop de usuarios-service):
+ * <ul>
+ *   <li>{@code GET /internal/usuarios/{id}/perfil-matching}</li>
+ *   <li>{@code GET /internal/usuarios/candidatos-matching}</li>
+ * </ul>
  */
 @FeignClient(name = "usuario-service", url = "${usuario-service.url}")
 public interface UsuarioFeignClient {

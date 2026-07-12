@@ -1,5 +1,7 @@
 server:
   port: ${SERVER_PORT:8086}
+#  servlet:
+#    context-path: /matching
 
 spring:
 
@@ -45,6 +47,9 @@ springdoc:
 
 security:
   internal-api-key: ${INTERNAL_API_KEY}
+
+jwt:
+  secret: ${JWT_SECRET}
 
 usuario-service:
   url: ${USUARIO_SERVICE_URL}
