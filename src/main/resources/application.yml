@@ -29,12 +29,18 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      ssl:
+        enabled: true   # ElastiCache (transit_encryption_enabled=true) exige TLS - mismo fix que Auth/Users
 
+  # Amazon MQ requiere el scheme amqps://, que solo `addresses` codifica bien
+  # (host/port separados no bastan). Los 3 nombres de abajo (SPRING_RABBITMQ_*)
+  # son el binding nativo de Spring Boot -> los provee directo el secret
+  # patricia-dev/amazon-mq via el ExternalSecret, sin necesidad de mapear a
+  # nombres custom. RABBITMQ_VHOST se mantiene con default local.
   rabbitmq:
-    host: ${RABBITMQ_HOST}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER}
-    password: ${RABBITMQ_PASS}
+    addresses: ${SPRING_RABBITMQ_ADDRESSES}
+    username: ${SPRING_RABBITMQ_USERNAME}
+    password: ${SPRING_RABBITMQ_PASSWORD}
     virtual-host: ${RABBITMQ_VHOST:/}
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -82,7 +88,9 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
