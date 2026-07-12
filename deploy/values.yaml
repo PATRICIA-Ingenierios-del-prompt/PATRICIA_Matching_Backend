@@ -1,3 +1,6 @@
+# Defaults for the Matching MS chart. The CD job overrides image.repository and
+# image.tag per deploy (pinned to the commit SHA); everything else is edited
+# here and versioned with the code it configures.
 # Defaults for the Matching MS chart. The CD job overrides image.repository
 # and image.tag per deploy (pinned to the commit SHA); everything else is
 # edited here and versioned with the code it configures.

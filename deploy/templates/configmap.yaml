@@ -1,3 +1,5 @@
+# Configuración no sensible. JWT_SECRET, RabbitMQ, Postgres y Redis vienen del
+# Secret matching-secrets sincronizado por el ExternalSecret (ver externalsecret.yaml).
 # Non-secret configuration. JWT_SECRET, RabbitMQ, Redis y Postgres vienen del
 # Secret matching-secrets sincronizado por el ExternalSecret (ver
 # externalsecret.yaml).
