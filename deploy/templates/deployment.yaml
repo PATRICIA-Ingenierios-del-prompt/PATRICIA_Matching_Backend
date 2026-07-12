@@ -35,6 +35,7 @@ spec:
           #   tráfico, no mata el pod.
           # - SecurityConfig ya permite /actuator/health/** con wildcard, así
           #   que el subpath de liveness ya es alcanzable sin cambios de código.
+
           startupProbe:
             httpGet: { path: /actuator/health, port: 8086 }
             periodSeconds: 5

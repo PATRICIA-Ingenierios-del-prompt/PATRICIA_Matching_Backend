@@ -1,49 +1,75 @@
 # Defaults for the Matching MS chart. The CD job overrides image.repository and
 # image.tag per deploy (pinned to the commit SHA); everything else is edited
 # here and versioned with the code it configures.
+# Defaults for the Matching MS chart. The CD job overrides image.repository
+# and image.tag per deploy (pinned to the commit SHA); everything else is
+# edited here and versioned with the code it configures.
 
 image:
   repository: ""            # set by CD: <account>.dkr.ecr.<region>.amazonaws.com/patricia-dev/matching
   tag: ""                   # set by CD: short commit SHA
   pullPolicy: IfNotPresent
 
+# Stateless REST + listener sobre Redis/RabbitMQ. 2 replicas por disponibilidad.
 replicaCount: 2
 
 serviceAccount:
-  roleArn: "arn:aws:iam::406103775000:role/patricia-dev-matching-irsa"
+  roleArn: "" # Matching no llama a ningun SDK de AWS (sin S3, sin nada) -> no necesita IRSA. Dejar vacio.
 
 config:
-
+  serverPort: "8086"
+  corsAllowedOrigins: "https://d2o13kfv3bj832.cloudfront.net"
   usuarioServiceUrl: "http://users.patricia-app.svc.cluster.local:8082"
-  # TODO: confirmar nombre real del Service de parches-core una vez desplegado.
-  parchesCoreServiceUrl: "http://parches-core.patricia-app.svc.cluster.local:8083"
-  corsAllowedOrigins: "https://app.patricia.io"
+  parchesCoreServiceUrl: "http://parches.patricia-app.svc.cluster.local:8083"
+  matchingMaxPool: "200"
+  matchingTamanoCola: "50"
+  matchingSugerenciasTtlHoras: "24"
+  matchingLikesTtlDias: "30"
+  # Parches Core todavia no expone /internal/parches/en-comun (ver
+  # ParcheCoreFeignClient.java) -> mantener el perfil mock-parches activo y el
+  # bonus desactivado hasta que ese endpoint exista. Cuando exista: quitar
+  # "mock-parches" de aca y poner matchingParchesComunHabilitado en "true".
+  springProfilesActive: "mock-parches"
+  matchingParchesComunHabilitado: "false"
+  matchingBonusPorParche: "0.05"
 
-  maxPool: "200"
-  tamanoCola: "50"
-  sugerenciasTtlHoras: "24"
-  likesTtlDias: "30"
-  # Ver README: sin endpoint real en Parches Core todavía, se mantiene apagado.
-  parchesComunHabilitado: "false"
-  bonusPorParche: "0.05"
-
-  # Solo relevante si ninguno de los dos endpoints reales existe aún en el
-  # entorno objetivo. Dejar vacío en producción cuando ambos existan.
-  activeProfiles: ""
-
+# External Secrets Operator: remote keys in AWS Secrets Manager
+# (created by Ulink_Infra module.secrets; prefix = ${project_name}-${environment}).
 externalSecrets:
   clusterSecretStore: patricia-aws-secrets-manager
   prefix: "patricia-dev"
-  # Lo que debe existir en AWS Secrets Manager para este servicio:
-  #   patricia-dev/jwt-secret        -> compartido con Auth/Gateway/Users.
-  #   patricia-dev/internal-api-key  -> compartido (mismo secreto service-to-service).
-  #   patricia-dev/amazon-mq         -> compartido. Claves JSON
-  #                                     SPRING_RABBITMQ_ADDRESSES/USERNAME/PASSWORD.
-  #   patricia-dev/cache-redis       -> compartido. Claves JSON
-  #                                     REDIS_HOST/REDIS_PORT/REDIS_PASSWORD.
-  #   patricia-dev/matching/rds      -> NUEVO, propio de este servicio. Claves JSON
-  #                                     SPRING_DATASOURCE_URL/USERNAME/PASSWORD
-  #                                     (mismo patrón que patricia-dev/users/rds).
+  # NOTE on lo que ya deberia estar provisionado en AWS Secrets Manager
+  # (confirmar con `aws secretsmanager list-secrets` antes de aplicar):
+  #   patricia-dev/jwt-secret     -> EXISTE (compartido, mismo que Auth/Gateway).
+  #   patricia-dev/amazon-mq      -> EXISTE (compartido). Keys nativas
+  #                                  SPRING_RABBITMQ_ADDRESSES/USERNAME/PASSWORD
+  #                                  (application.yml de Matching ya se ajusto
+  #                                  para usar `addresses`, ver el fix adjunto).
+  #   patricia-dev/cache-redis    -> EXISTE (compartido con Auth/Parche Core/
+  #                                  Location/Collaboration). Keys REDIS_HOST/
+  #                                  REDIS_PORT/REDIS_PASSWORD.
+  #   patricia-dev/matching/rds   -> DEBERIA existir ya: "matching" esta en
+  #                                  rds_services y en ecr_repositories por
+  #                                  default en variables.tf, asi que si ya
+  #                                  corriste terraform apply para el resto de
+  #                                  servicios, esta instancia y este secret ya
+  #                                  se crearon. Confirmalo con
+  #                                  `aws secretsmanager list-secrets | grep matching`
+  #                                  y `aws rds describe-db-instances` antes de
+  #                                  asumirlo. Su forma es SPRING_DATASOURCE_URL/
+  #                                  USERNAME/PASSWORD (nativa) -- mapeada abajo
+  #                                  a POSTGRES_URL/POSTGRES_USER/POSTGRES_PASS
+  #                                  porque asi es como el codigo de Matching
+  #                                  los espera (igual que paso con Users).
+  #   patricia-dev/internal-api-key -> CONFIRMAR si ya existe (en la sesion de
+  #                                  Auth todavia no existia). Si no existe,
+  #                                  Matching arranca igual (sin @Validated en
+  #                                  esa property) pero /internal/** y las
+  #                                  llamadas Feign que mandan
+  #                                  X-Internal-Api-Key van a fallar validacion
+  #                                  del lado de Usuarios/Parches hasta que el
+  #                                  valor real exista y sea el MISMO en los
+  #                                  tres servicios.
 
 resources:
   requests: { cpu: 500m, memory: 768Mi }
