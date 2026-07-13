@@ -23,6 +23,23 @@
     <spring-cloud.version>2023.0.3</spring-cloud.version>
     <lombok.version>1.18.36</lombok.version>
     <mapstruct.version>1.6.3</mapstruct.version>
+
+    <!-- Sonar (mismos excludes que ya se pasaban como -D en CI.yml) -->
+    <sonar.organization>patricia-escuelaing</sonar.organization>
+    <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+    <sonar.coverage.jacoco.xmlReportPaths>
+      ${project.build.directory}/site/jacoco/jacoco.xml
+    </sonar.coverage.jacoco.xmlReportPaths>
+    <sonar.exclusions>
+      **/MatchingServiceApplication.java
+    </sonar.exclusions>
+    <sonar.coverage.exclusions>
+      **/MatchingServiceApplication.java,
+      **/dto/**,
+      **/*Entity.java,
+      **/*Mapper.java,
+      **/config/**
+    </sonar.coverage.exclusions>
   </properties>
 
   <dependencies>
