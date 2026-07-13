@@ -123,9 +123,47 @@ Los endpoints `/internal/**` requieren `X-Internal-Api-Key`.
 
 ```bash
 cp .env.example .env   # completar valores
-docker compose up -d   # Redis (6380), RabbitMQ (5673/15673), Postgres (5433)
+docker compose up -d postgres rabbitmq redis   # Redis (6380), RabbitMQ (5673/15673), Postgres (5433)
 mvn spring-boot:run
 ```
+
+O, para levantar todo (incluido el propio servicio) vía Docker:
+
+```bash
+docker compose up --build
+```
+
+La API queda disponible en `http://localhost:8086`. Swagger UI en
+`http://localhost:8086/swagger-ui.html`.
+
+## Despliegue
+
+Sigue la misma estructura que `usuarios-service`:
+
+- `Dockerfile` — build multi-stage (Maven → JRE Alpine), expone el puerto 8086.
+- `deploy/` — Helm chart (`Chart.yaml`, `values.yaml`, `templates/`) con
+  Deployment, Service, HPA, ServiceAccount (IRSA) y ExternalSecret.
+- `.github/workflows/CI.yml` — build + test + coverage + Sonar en cada push/PR,
+  y en push a `main`: build & push de imagen a ECR (tag = short SHA) seguido
+  de `helm upgrade` contra el cluster EKS.
+
+Variables de entorno inyectadas en producción vía ConfigMap (`matching-config`)
+y Secret (`matching-secrets`, poblado por el `ExternalSecret` desde AWS
+Secrets Manager). Nombres de binding de Spring Boot usados (mismos que
+`usuarios-service`, sin capa de traducción):
+
+| Origen (AWS Secrets Manager)     | Variables de entorno                                              |
+|-----------------------------------|---------------------------------------------------------------------|
+| `patricia-dev/jwt-secret`         | `JWT_SECRET`                                                        |
+| `patricia-dev/internal-api-key`   | `INTERNAL_API_KEY`                                                  |
+| `patricia-dev/amazon-mq`          | `SPRING_RABBITMQ_ADDRESSES`, `SPRING_RABBITMQ_USERNAME`, `SPRING_RABBITMQ_PASSWORD` |
+| `patricia-dev/cache-redis`        | `REDIS_HOST`, `REDIS_PORT`, `SPRING_DATA_REDIS_PASSWORD`            |
+| `patricia-dev/matching/rds` (nuevo) | `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` |
+
+`patricia-dev/matching/rds` es el único secreto que no existía todavía para
+otro servicio — debe crearse en AWS Secrets Manager como JSON con esas tres
+claves, igual que `patricia-dev/users/rds`. El resto se reutiliza tal cual
+(mismos secretos compartidos que usan Auth/Gateway/Users).
 
 ### Desarrollo sin Usuarios / Parches Core desplegados
 

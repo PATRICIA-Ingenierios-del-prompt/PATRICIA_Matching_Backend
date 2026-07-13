@@ -8,10 +8,12 @@ spring:
   application:
     name: matching-service
 
+  # Nombres de binding de Spring Boot (mismo patrón que usuarios-service):
+  # el ExternalSecret escribe directamente estas claves, sin capa de traducción.
   datasource:
-    url: ${POSTGRES_URL}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASS}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
 
   jpa:
     hibernate:
