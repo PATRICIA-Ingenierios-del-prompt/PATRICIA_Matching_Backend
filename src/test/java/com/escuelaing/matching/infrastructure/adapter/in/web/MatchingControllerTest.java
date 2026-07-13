@@ -22,6 +22,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -33,7 +35,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -172,5 +176,34 @@ class MatchingControllerTest {
                         .header("Authorization", "Bearer " + tokenPara(usuarioId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0]").value(admiradorId.toString()));
+    }
+
+    // ── Rama defensiva de usuarioId(Authentication) ──────────────────────────
+    // No debería dispararse nunca en producción (SecurityConfig exige
+    // authenticated() y JwtAuthenticationFilter siempre puebla un UUID
+    // válido), pero al ser código de seguridad se prueba directo, sin pasar
+    // por el filtro real, instanciando el controller a mano.
+
+    @Test
+    void usuarioId_conPrincipalQueNoEsUuid_lanzaAccessDenied() {
+        MatchingController controller = new MatchingController(
+                consultarSugerenciasUseCase, decidirSobreSugerenciaUseCase,
+                listarMatchesUseCase, consultarSolicitudesRecibidasUseCase);
+
+        Authentication authConPrincipalInvalido = mock(Authentication.class);
+        when(authConPrincipalInvalido.getPrincipal()).thenReturn("no-es-un-uuid");
+
+        assertThrows(AccessDeniedException.class,
+                () -> controller.obtenerSugerencias(authConPrincipalInvalido, 20));
+    }
+
+    @Test
+    void usuarioId_conAuthenticationNula_lanzaAccessDenied() {
+        MatchingController controller = new MatchingController(
+                consultarSugerenciasUseCase, decidirSobreSugerenciaUseCase,
+                listarMatchesUseCase, consultarSolicitudesRecibidasUseCase);
+
+        assertThrows(AccessDeniedException.class,
+                () -> controller.obtenerSugerencias(null, 20));
     }
 }
