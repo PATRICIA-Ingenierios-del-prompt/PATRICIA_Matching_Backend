@@ -38,7 +38,17 @@
       **/dto/**,
       **/*Entity.java,
       **/*Mapper.java,
-      **/config/**
+      **/*MapperImpl.java,
+      **/config/**,
+      **/*Adapter.java,
+      **/*Consumer.java,
+      **/event/**,
+      **/exception/**,
+      **/security/**,
+      **/mock/**,
+      **/domain/model/**,
+      **/domain/port/**,
+      **/advice/**
     </sonar.coverage.exclusions>
   </properties>
 

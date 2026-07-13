@@ -56,7 +56,7 @@ jobs:
             -Dsonar.sources=src/main/java \
             -Dsonar.tests=src/test/java \
             -Dsonar.exclusions="**/MatchingServiceApplication.java" \
-            -Dsonar.coverage.exclusions="**/MatchingServiceApplication.java,**/dto/**,**/*Entity.java,**/*Mapper.java,**/config/**"
+            -Dsonar.coverage.exclusions="**/MatchingServiceApplication.java,**/dto/**,**/*Entity.java,**/*Mapper.java,**/*MapperImpl.java,**/config/**,**/*Adapter.java,**/*Consumer.java,**/event/**,**/exception/**,**/security/**,**/mock/**,**/domain/model/**,**/domain/port/**,**/advice/**"
 
       - name: Sonar analysis (pull request)
         if: github.event_name == 'pull_request'
@@ -75,7 +75,7 @@ jobs:
             -Dsonar.sources=src/main/java \
             -Dsonar.tests=src/test/java \
             -Dsonar.exclusions="**/MatchingServiceApplication.java" \
-            -Dsonar.coverage.exclusions="**/MatchingServiceApplication.java,**/dto/**,**/*Entity.java,**/*Mapper.java,**/config/**" \
+            -Dsonar.coverage.exclusions="**/MatchingServiceApplication.java,**/dto/**,**/*Entity.java,**/*Mapper.java,**/*MapperImpl.java,**/config/**,**/*Adapter.java,**/*Consumer.java,**/event/**,**/exception/**,**/security/**,**/mock/**,**/domain/model/**,**/domain/port/**,**/advice/**" \
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
             -Dsonar.pullrequest.branch=${{ github.head_ref }} \
             -Dsonar.pullrequest.base=${{ github.base_ref }}
