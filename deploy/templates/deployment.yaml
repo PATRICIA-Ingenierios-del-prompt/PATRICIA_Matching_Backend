@@ -3,10 +3,9 @@ kind: Deployment
 metadata:
   name: matching
   namespace: patricia-app
-  labels: { app: matching }
+  labels: { app: matching, patricia.io/sg-tier: standard }
 spec:
   replicas: {{ .Values.replicaCount }}
-
   selector:
     matchLabels: { app: matching }
   template:
@@ -23,6 +22,19 @@ spec:
           envFrom:
             - configMapRef: { name: matching-config }
             - secretRef:    { name: matching-secrets }
+          # Mismo patrón que Auth/Users:
+          # - startupProbe le da tiempo a la JVM de arrancar (Fargate frío +
+          #   Spring Security + JPA + Redis + Rabbit) antes de que
+          #   liveness/readiness empiecen a chequear.
+          # - timeoutSeconds:3 (no el 1s default de Kubernetes) para evitar
+          #   reinicios por lentitud puntual bajo poca CPU, no por un hang real.
+          # - livenessProbe pega a /actuator/health/liveness (señal solo de la
+          #   JVM), nunca al /actuator/health agregado — un blip transitorio de
+          #   Redis/Rabbit no debe matar un pod sano. readinessProbe sí refleja
+          #   la salud real de las dependencias, porque solo controla el
+          #   tráfico, no mata el pod.
+          # - SecurityConfig ya permite /actuator/health/** con wildcard, así
+          #   que el subpath de liveness ya es alcanzable sin cambios de código.
 
           startupProbe:
             httpGet: { path: /actuator/health, port: 8086 }

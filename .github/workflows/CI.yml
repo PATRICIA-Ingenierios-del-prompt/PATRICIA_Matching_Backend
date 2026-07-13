@@ -119,6 +119,11 @@ jobs:
         id: meta
         run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
+      # Idempotencia: los repos ECR aquí tienen tags inmutables, así que
+      # re-ejecutar este job sobre un commit ya publicado (re-run del
+      # workflow, retry tras fallo en un paso posterior) fallaría con
+      # "tag invalid ... cannot be overwritten". Si el tag ya existe, se
+      # salta build/push y el deploy lo reutiliza tal cual.
       # Idempotency check: ECR repos here have immutable tags, so re-running
       # this job on a commit that was already pushed (e.g. "re-run all jobs")
       # would fail with "tag invalid ... cannot be overwritten". If the tag
@@ -135,6 +140,8 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Sin tag movible (`:main`) — misma razón que Gateway/Auth/Users: los
+      # tags en ECR son inmutables, así que solo se usa/publica el tag de SHA.
       - name: Build and push
         if: steps.check-image.outputs.exists == 'false'
         run: |
@@ -187,6 +194,10 @@ jobs:
 
       - name: Smoke check
         run: |
+          # Misma razón que Auth/Users: el ingress público enruta /api al
+          # Service `gateway`, no directo a `matching`, y Matching no expone
+          # ninguna ruta actuator bajo /api/**, así que siempre se valida
+          # in-cluster en vez de por la URL pública.
           # Igual que Auth: chequeo in-cluster, no la URL publica. Todavia no
           # hay ruta /api/matching (u otro path) en Gateway ni en el
           # ordered_cache_behavior de CloudFront, asi que la unica forma real
