@@ -7,6 +7,8 @@ import com.escuelaing.matching.domain.model.ScoreCompatibilidad;
 import com.escuelaing.matching.domain.model.Sugerencia;
 import com.escuelaing.matching.domain.port.in.CalcularSugerenciasUseCase;
 import com.escuelaing.matching.domain.port.out.ColaSugerenciasPort;
+import com.escuelaing.matching.domain.port.out.DecisionesTomadasPort;
+import com.escuelaing.matching.domain.port.out.MatchRepositoryPort;
 import com.escuelaing.matching.domain.port.out.ParcheMembresiaPort;
 import com.escuelaing.matching.domain.port.out.PerfilUsuarioPort;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,8 @@ public class CalcularSugerenciasService implements CalcularSugerenciasUseCase {
     private final PerfilUsuarioPort perfilUsuarioPort;
     private final ParcheMembresiaPort parcheMembresiaPort;
     private final ColaSugerenciasPort colaSugerenciasPort;
+    private final DecisionesTomadasPort decisionesTomadasPort;
+    private final MatchRepositoryPort matchRepositoryPort;
 
     @Value("${matching.candidatos.max-pool:200}")
     private int maxPoolCandidatos;
@@ -68,6 +72,10 @@ public class CalcularSugerenciasService implements CalcularSugerenciasUseCase {
         List<Sugerencia> sugerencias = candidatos.stream()
                 .filter(PerfilMatching::esElegible)
                 .filter(candidato -> !candidato.usuarioId().equals(usuarioId))
+                // No volver a sugerir a alguien sobre quien el usuario ya decidió
+                // (LIKE o DESCARTE) ni a alguien con quien ya hay match confirmado.
+                .filter(candidato -> !decisionesTomadasPort.yaDecidioSobre(usuarioId, candidato.usuarioId()))
+                .filter(candidato -> !matchRepositoryPort.existeEntre(usuarioId, candidato.usuarioId()))
                 .map(candidato -> construirSugerencia(usuario, candidato))
                 .sorted(Comparator.comparingDouble((Sugerencia s) -> s.score().total()).reversed())
                 .limit(tamanoCola)
