@@ -15,7 +15,7 @@ serviceAccount:
 
 config:
   serverPort: "8086"
-  corsAllowedOrigins: "https://d2o13kfv3bj832.cloudfront.net"
+  corsAllowedOrigins: "https://www.ulinkapp.website,https://d2j23eaj60rkgu.cloudfront.net"
   usuarioServiceUrl: "http://users.patricia-app.svc.cluster.local:8082"
   parchesCoreServiceUrl: "http://parches.patricia-app.svc.cluster.local:8083"
   matchingMaxPool: "200"
