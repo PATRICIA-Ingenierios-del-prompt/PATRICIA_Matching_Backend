@@ -7,6 +7,7 @@ import com.escuelaing.matching.domain.model.ScoreCompatibilidad;
 import com.escuelaing.matching.domain.model.Sugerencia;
 import com.escuelaing.matching.domain.port.out.ColaSugerenciasPort;
 import com.escuelaing.matching.domain.port.out.DecisionPendientePort;
+import com.escuelaing.matching.domain.port.out.DecisionesTomadasPort;
 import com.escuelaing.matching.domain.port.out.EventoMatchingPort;
 import com.escuelaing.matching.domain.port.out.MatchRepositoryPort;
 import org.junit.jupiter.api.Test;
@@ -27,11 +28,12 @@ class DecidirSobreSugerenciaServiceTest {
 
     private final ColaSugerenciasPort colaSugerenciasPort = mock(ColaSugerenciasPort.class);
     private final DecisionPendientePort decisionPendientePort = mock(DecisionPendientePort.class);
+    private final DecisionesTomadasPort decisionesTomadasPort = mock(DecisionesTomadasPort.class);
     private final MatchRepositoryPort matchRepositoryPort = mock(MatchRepositoryPort.class);
     private final EventoMatchingPort eventoMatchingPort = mock(EventoMatchingPort.class);
 
     private final DecidirSobreSugerenciaService service = new DecidirSobreSugerenciaService(
-            colaSugerenciasPort, decisionPendientePort, matchRepositoryPort, eventoMatchingPort
+            colaSugerenciasPort, decisionPendientePort, decisionesTomadasPort, matchRepositoryPort, eventoMatchingPort
     );
 
     @Test
@@ -48,6 +50,7 @@ class DecidirSobreSugerenciaServiceTest {
 
         assertTrue(resultado.isEmpty());
         verify(decisionPendientePort).registrarLike(usuarioId, candidatoId);
+        verify(decisionesTomadasPort).registrarDecision(usuarioId, candidatoId);
         verify(eventoMatchingPort, never()).publicarMatchConfirmado(any());
     }
 
@@ -82,6 +85,7 @@ class DecidirSobreSugerenciaServiceTest {
 
         assertTrue(resultado.isEmpty());
         verify(decisionPendientePort, never()).registrarLike(any(), any());
+        verify(decisionesTomadasPort).registrarDecision(usuarioId, candidatoId);
         verify(eventoMatchingPort, never()).publicarMatchConfirmado(any());
     }
 

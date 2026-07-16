@@ -8,6 +8,7 @@ import com.escuelaing.matching.domain.model.Sugerencia;
 import com.escuelaing.matching.domain.port.in.DecidirSobreSugerenciaUseCase;
 import com.escuelaing.matching.domain.port.out.ColaSugerenciasPort;
 import com.escuelaing.matching.domain.port.out.DecisionPendientePort;
+import com.escuelaing.matching.domain.port.out.DecisionesTomadasPort;
 import com.escuelaing.matching.domain.port.out.EventoMatchingPort;
 import com.escuelaing.matching.domain.port.out.MatchRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class DecidirSobreSugerenciaService implements DecidirSobreSugerenciaUseC
 
     private final ColaSugerenciasPort colaSugerenciasPort;
     private final DecisionPendientePort decisionPendientePort;
+    private final DecisionesTomadasPort decisionesTomadasPort;
     private final MatchRepositoryPort matchRepositoryPort;
     private final EventoMatchingPort eventoMatchingPort;
 
@@ -39,8 +41,11 @@ public class DecidirSobreSugerenciaService implements DecidirSobreSugerenciaUseC
                 .orElseThrow(() -> new SugerenciaNoEncontradaException(
                         "No hay una sugerencia vigente de " + candidatoId + " para el usuario " + usuarioId));
 
-        // La sugerencia se consume al decidir, sea LIKE o DESCARTE.
+        // La sugerencia se consume al decidir, sea LIKE o DESCARTE. Se registra
+        // también en decisionesTomadasPort para que este candidato no vuelva a
+        // aparecer en un recálculo futuro de la cola (ver CalcularSugerenciasService).
         colaSugerenciasPort.eliminarSugerencia(usuarioId, candidatoId);
+        decisionesTomadasPort.registrarDecision(usuarioId, candidatoId);
 
         if (decision == DecisionMatching.DESCARTE) {
             log.debug("Usuario {} descartó al candidato {}", usuarioId, candidatoId);

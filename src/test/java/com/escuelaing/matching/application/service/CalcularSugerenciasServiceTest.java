@@ -6,6 +6,8 @@ import com.escuelaing.matching.domain.model.EstadoUsuario;
 import com.escuelaing.matching.domain.model.PerfilMatching;
 import com.escuelaing.matching.domain.model.Sugerencia;
 import com.escuelaing.matching.domain.port.out.ColaSugerenciasPort;
+import com.escuelaing.matching.domain.port.out.DecisionesTomadasPort;
+import com.escuelaing.matching.domain.port.out.MatchRepositoryPort;
 import com.escuelaing.matching.domain.port.out.ParcheMembresiaPort;
 import com.escuelaing.matching.domain.port.out.PerfilUsuarioPort;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,12 +37,15 @@ class CalcularSugerenciasServiceTest {
     private final PerfilUsuarioPort perfilUsuarioPort = mock(PerfilUsuarioPort.class);
     private final ParcheMembresiaPort parcheMembresiaPort = mock(ParcheMembresiaPort.class);
     private final ColaSugerenciasPort colaSugerenciasPort = mock(ColaSugerenciasPort.class);
+    private final DecisionesTomadasPort decisionesTomadasPort = mock(DecisionesTomadasPort.class);
+    private final MatchRepositoryPort matchRepositoryPort = mock(MatchRepositoryPort.class);
 
     private CalcularSugerenciasService service;
 
     @BeforeEach
     void setUp() {
-        service = new CalcularSugerenciasService(perfilUsuarioPort, parcheMembresiaPort, colaSugerenciasPort);
+        service = new CalcularSugerenciasService(perfilUsuarioPort, parcheMembresiaPort, colaSugerenciasPort,
+                decisionesTomadasPort, matchRepositoryPort);
         // @Value no se inyecta fuera de un contexto Spring — se fija a mano
         // con los mismos defaults que declara application.yml.
         ReflectionTestUtils.setField(service, "maxPoolCandidatos", 200);
@@ -107,6 +112,54 @@ class CalcularSugerenciasServiceTest {
         assertEquals(2, sugerencias.size(), "el no elegible debe quedar filtrado");
         assertEquals(candidatoAltoId, sugerencias.get(0).candidatoId(), "mayor afinidad de intereses primero");
         assertTrue(sugerencias.get(0).score().total() >= sugerencias.get(1).score().total());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void excluyeCandidatoSobreElQueYaSeDecidio() {
+        UUID usuarioId = UUID.randomUUID();
+        UUID candidatoDecididoId = UUID.randomUUID();
+        UUID candidatoNuevoId = UUID.randomUUID();
+
+        PerfilMatching usuario = perfil(usuarioId, EstadoUsuario.ACTIVE, Set.of("Musica"));
+        PerfilMatching candidatoDecidido = perfil(candidatoDecididoId, EstadoUsuario.ACTIVE, Set.of("Musica"));
+        PerfilMatching candidatoNuevo = perfil(candidatoNuevoId, EstadoUsuario.ACTIVE, Set.of("Musica"));
+
+        when(perfilUsuarioPort.buscarPorId(usuarioId)).thenReturn(Optional.of(usuario));
+        when(perfilUsuarioPort.buscarCandidatos(usuarioId, 200))
+                .thenReturn(List.of(candidatoDecidido, candidatoNuevo));
+        when(decisionesTomadasPort.yaDecidioSobre(usuarioId, candidatoDecididoId)).thenReturn(true);
+
+        service.recalcularPara(usuarioId);
+
+        ArgumentCaptor<List<Sugerencia>> captor = ArgumentCaptor.forClass(List.class);
+        verify(colaSugerenciasPort).reemplazarCola(eq(usuarioId), captor.capture());
+        assertEquals(1, captor.getValue().size());
+        assertEquals(candidatoNuevoId, captor.getValue().get(0).candidatoId());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void excluyeCandidatoConElQueYaHayMatchConfirmado() {
+        UUID usuarioId = UUID.randomUUID();
+        UUID candidatoMatcheadoId = UUID.randomUUID();
+        UUID candidatoNuevoId = UUID.randomUUID();
+
+        PerfilMatching usuario = perfil(usuarioId, EstadoUsuario.ACTIVE, Set.of("Musica"));
+        PerfilMatching candidatoMatcheado = perfil(candidatoMatcheadoId, EstadoUsuario.ACTIVE, Set.of("Musica"));
+        PerfilMatching candidatoNuevo = perfil(candidatoNuevoId, EstadoUsuario.ACTIVE, Set.of("Musica"));
+
+        when(perfilUsuarioPort.buscarPorId(usuarioId)).thenReturn(Optional.of(usuario));
+        when(perfilUsuarioPort.buscarCandidatos(usuarioId, 200))
+                .thenReturn(List.of(candidatoMatcheado, candidatoNuevo));
+        when(matchRepositoryPort.existeEntre(usuarioId, candidatoMatcheadoId)).thenReturn(true);
+
+        service.recalcularPara(usuarioId);
+
+        ArgumentCaptor<List<Sugerencia>> captor = ArgumentCaptor.forClass(List.class);
+        verify(colaSugerenciasPort).reemplazarCola(eq(usuarioId), captor.capture());
+        assertEquals(1, captor.getValue().size());
+        assertEquals(candidatoNuevoId, captor.getValue().get(0).candidatoId());
     }
 
     @Test
