@@ -1,19 +1,25 @@
 package com.escuelaing.matching.infrastructure.adapter.out.client.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Contrato esperado de un endpoint interno de Usuarios que HOY NO EXISTE
- * en el repo (ver TODO_INTEGRACIONES.md). Se propone como:
- * {@code GET /internal/usuarios/{id}/perfil-matching}.
+ * Contrato consumido de Usuarios vía {@code GET /internal/usuarios/{id}/perfil-matching}
+ * y {@code GET /internal/usuarios/candidatos-matching} (ver {@code InternalUsuarioController}
+ * en el repo de usuarios-service, DTO {@code PerfilMatchingResponse}).
  * <p>
- * Composición sugerida en Usuarios: {@code UsuarioResponse} (estado) +
- * {@code PerfilResponse} (carrera, semestre, intereses, disponibilidad),
- * que hoy se sirven por separado vía {@code /internal/usuarios/{id}}
- * (API key) y {@code /api/v1/usuarios/{id}/perfil} (JWT de usuario final,
- * no apto para llamadas servicio-a-servicio).
+ * {@code @JsonIgnoreProperties(ignoreUnknown = true)}: usuarios-service agregó
+ * {@code urlFotoPerfil}/{@code tienePersonaEnFoto}/{@code franjasDisponibilidad}
+ * a ese contrato para otros consumidores; matching-service no los necesita
+ * (no participan del cálculo de compatibilidad), pero sin esta anotación
+ * Jackson lanza {@code UnrecognizedPropertyException} en cada respuesta
+ * (falla por defecto ante campos desconocidos), y el Feign client lo atrapa
+ * como {@code FeignException} devolviendo listas/perfiles vacíos en
+ * silencio — vaciando el pool de candidatos sin ningún error visible.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record UsuarioPerfilMatchingResponse(
         UUID id,
         String estado,

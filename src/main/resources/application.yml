@@ -85,6 +85,7 @@ matching:
   sugerencias:
     tamano-cola: ${MATCHING_TAMANO_COLA:50}
     ttl-horas: ${MATCHING_SUGERENCIAS_TTL_HORAS:24}
+    empty-ttl-minutos: ${MATCHING_SUGERENCIAS_EMPTY_TTL_MINUTOS:15}
   likes:
     ttl-dias: ${MATCHING_LIKES_TTL_DIAS:30}
   parches-comun:
