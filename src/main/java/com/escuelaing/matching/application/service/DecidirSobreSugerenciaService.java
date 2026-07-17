@@ -1,8 +1,11 @@
 package com.escuelaing.matching.application.service;
 
 import com.escuelaing.matching.domain.exception.SugerenciaNoEncontradaException;
+import com.escuelaing.matching.domain.exception.UsuarioNoElegibleException;
+import com.escuelaing.matching.domain.model.CalculadoraCompatibilidad;
 import com.escuelaing.matching.domain.model.DecisionMatching;
 import com.escuelaing.matching.domain.model.Match;
+import com.escuelaing.matching.domain.model.PerfilMatching;
 import com.escuelaing.matching.domain.model.ScoreCompatibilidad;
 import com.escuelaing.matching.domain.model.Sugerencia;
 import com.escuelaing.matching.domain.port.in.DecidirSobreSugerenciaUseCase;
@@ -11,6 +14,7 @@ import com.escuelaing.matching.domain.port.out.DecisionPendientePort;
 import com.escuelaing.matching.domain.port.out.DecisionesTomadasPort;
 import com.escuelaing.matching.domain.port.out.EventoMatchingPort;
 import com.escuelaing.matching.domain.port.out.MatchRepositoryPort;
+import com.escuelaing.matching.domain.port.out.PerfilUsuarioPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +33,7 @@ public class DecidirSobreSugerenciaService implements DecidirSobreSugerenciaUseC
     private final DecisionesTomadasPort decisionesTomadasPort;
     private final MatchRepositoryPort matchRepositoryPort;
     private final EventoMatchingPort eventoMatchingPort;
+    private final PerfilUsuarioPort perfilUsuarioPort;
 
     // @Transactional aquí solo protege la escritura en MatchRepositoryPort (JPA/PostgreSQL).
     // Las operaciones sobre Redis (cola de sugerencias, likes pendientes) no participan de
@@ -37,13 +42,23 @@ public class DecidirSobreSugerenciaService implements DecidirSobreSugerenciaUseC
     @Override
     @Transactional
     public Optional<Match> decidir(UUID usuarioId, UUID candidatoId, DecisionMatching decision) {
-        Sugerencia sugerencia = colaSugerenciasPort.obtenerSugerencia(usuarioId, candidatoId)
-                .orElseThrow(() -> new SugerenciaNoEncontradaException(
-                        "No hay una sugerencia vigente de " + candidatoId + " para el usuario " + usuarioId));
+        Optional<Sugerencia> sugerencia = colaSugerenciasPort.obtenerSugerencia(usuarioId, candidatoId);
 
-        // La sugerencia se consume al decidir, sea LIKE o DESCARTE. Se registra
-        // también en decisionesTomadasPort para que este candidato no vuelva a
-        // aparecer en un recálculo futuro de la cola (ver CalcularSugerenciasService).
+        // Si no hay sugerencia vigente en la cola propia, solo es válido seguir
+        // cuando se está respondiendo a una solicitud recibida (candidatoId ya
+        // le dio LIKE a usuarioId). Sin esto, un candidato que ya quedó excluido
+        // de futuros recálculos por decisionesTomadasPort (porque el usuario ya
+        // decidió sobre él antes) nunca podría aceptarse/rechazarse desde
+        // "solicitudes recibidas", así el candidato sí tenga un like pendiente.
+        if (sugerencia.isEmpty() && !decisionPendientePort.existeLikeReciproco(usuarioId, candidatoId)) {
+            throw new SugerenciaNoEncontradaException(
+                    "No hay una sugerencia vigente de " + candidatoId + " para el usuario " + usuarioId);
+        }
+
+        // La sugerencia se consume al decidir, sea LIKE o DESCARTE (si existía en
+        // la cola). Se registra también en decisionesTomadasPort para que este
+        // candidato no vuelva a aparecer en un recálculo futuro de la cola
+        // (ver CalcularSugerenciasService).
         colaSugerenciasPort.eliminarSugerencia(usuarioId, candidatoId);
         decisionesTomadasPort.registrarDecision(usuarioId, candidatoId);
 
@@ -58,12 +73,28 @@ public class DecidirSobreSugerenciaService implements DecidirSobreSugerenciaUseC
         }
 
         if (decisionPendientePort.existeLikeReciproco(usuarioId, candidatoId)) {
-            return Optional.of(confirmarMatch(usuarioId, candidatoId, sugerencia.score()));
+            ScoreCompatibilidad score = sugerencia.map(Sugerencia::score)
+                    .orElseGet(() -> calcularScoreFresco(usuarioId, candidatoId));
+            return Optional.of(confirmarMatch(usuarioId, candidatoId, score));
         }
 
         decisionPendientePort.registrarLike(usuarioId, candidatoId);
         log.debug("Usuario {} dio LIKE a {}, pendiente de reciprocidad", usuarioId, candidatoId);
         return Optional.empty();
+    }
+
+    /**
+     * Recalcula el score cuando se responde a una solicitud recibida sin que
+     * el candidato siga en la cola propia (ver comentario en {@link #decidir}).
+     */
+    private ScoreCompatibilidad calcularScoreFresco(UUID usuarioId, UUID candidatoId) {
+        PerfilMatching usuario = perfilUsuarioPort.buscarPorId(usuarioId)
+                .orElseThrow(() -> new UsuarioNoElegibleException(
+                        "Usuario " + usuarioId + " no encontrado en Usuarios"));
+        PerfilMatching candidato = perfilUsuarioPort.buscarPorId(candidatoId)
+                .orElseThrow(() -> new UsuarioNoElegibleException(
+                        "Usuario " + candidatoId + " no encontrado en Usuarios"));
+        return CalculadoraCompatibilidad.calcular(usuario, candidato);
     }
 
     private Match confirmarMatch(UUID usuarioId, UUID candidatoId, ScoreCompatibilidad score) {
