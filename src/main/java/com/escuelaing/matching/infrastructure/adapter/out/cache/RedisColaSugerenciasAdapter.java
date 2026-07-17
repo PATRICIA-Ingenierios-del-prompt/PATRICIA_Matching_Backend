@@ -43,6 +43,14 @@ public class RedisColaSugerenciasAdapter implements ColaSugerenciasPort {
     @Value("${matching.sugerencias.ttl-horas:24}")
     private long ttlHoras;
 
+    // TTL corto y separado del de la cola real: un pool vacío suele ser
+    // transitorio (fallo de un servicio externo, usuario recién creado,
+    // etc.), así que no conviene "recordarlo" 24h como si fuera una cola
+    // con resultados legítimos. Con esto, un falso vacío se autocorrige
+    // solo en minutos en vez de quedar pegado un día entero.
+    @Value("${matching.sugerencias.empty-ttl-minutos:15}")
+    private long emptyTtlMinutos;
+
     @Override
     public void reemplazarCola(UUID usuarioId, List<Sugerencia> sugerencias) {
         String key = key(usuarioId);
@@ -50,9 +58,7 @@ public class RedisColaSugerenciasAdapter implements ColaSugerenciasPort {
         redisTemplate.delete(key);
 
         if (sugerencias.isEmpty()) {
-            // Igual se marca con TTL corto para no recalcular en loop si el
-            // usuario quedó sin candidatos elegibles.
-            redisTemplate.opsForValue().set(key + ":empty", "1", Duration.ofHours(ttlHoras));
+            redisTemplate.opsForValue().set(key + ":empty", "1", Duration.ofMinutes(emptyTtlMinutos));
             return;
         }
 
