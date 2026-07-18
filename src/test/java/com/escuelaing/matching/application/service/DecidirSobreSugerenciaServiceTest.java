@@ -92,6 +92,7 @@ class DecidirSobreSugerenciaServiceTest {
 
         assertTrue(resultado.isEmpty());
         verify(decisionPendientePort, never()).registrarLike(any(), any());
+        verify(decisionPendientePort).eliminarLike(candidatoId, usuarioId);
         verify(decisionesTomadasPort).registrarDecision(usuarioId, candidatoId);
         verify(eventoMatchingPort, never()).publicarMatchConfirmado(any());
     }
@@ -144,6 +145,7 @@ class DecidirSobreSugerenciaServiceTest {
         Optional<Match> resultado = service.decidir(usuarioId, candidatoId, DecisionMatching.DESCARTE);
 
         assertTrue(resultado.isEmpty());
+        verify(decisionPendientePort).eliminarLike(candidatoId, usuarioId);
         verify(decisionesTomadasPort).registrarDecision(usuarioId, candidatoId);
         verify(eventoMatchingPort, never()).publicarMatchConfirmado(any());
     }
