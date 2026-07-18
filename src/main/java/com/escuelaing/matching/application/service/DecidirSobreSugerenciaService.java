@@ -63,6 +63,7 @@ public class DecidirSobreSugerenciaService implements DecidirSobreSugerenciaUseC
         decisionesTomadasPort.registrarDecision(usuarioId, candidatoId);
 
         if (decision == DecisionMatching.DESCARTE) {
+            decisionPendientePort.eliminarLike(candidatoId, usuarioId);
             log.debug("Usuario {} descartó al candidato {}", usuarioId, candidatoId);
             return Optional.empty();
         }
